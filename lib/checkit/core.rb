@@ -17,10 +17,12 @@ module CheckIt
     def perform_checks
       check_bundle
       check_dependencies
-      # check if foreman is installed
+      # TODO: check if foreman is installed
       check_config_files
-      #notify about tests
+      # TODO: notify about test suites
     end
+
+    protected
 
     def check_bundle
       io.print_header('Bundled rubygems')
@@ -34,28 +36,10 @@ module CheckIt
 
     def check_config_files
       io.print_header('Configuration files')
-      if File.directory?("config")
-        Dir['config/*sample*', 'config/*example*'].each do |example_file|
-          cleaned_file_name = example_file.gsub(/\.sample|\.example/, '')
-          io.print "   #{cleaned_file_name}: "
-          output = if File.exists?(cleaned_file_name)
-            io.colorize(:notice, 'Ok')
-          else
-            if %w(.json .yml).include?(File.extname(cleaned_file_name))
-              io.colorize(:alert, 'Missing')
-            else
-              io.colorize(:warning, 'Probably not a config file or a duplicate')
-            end
-          end
-          io.puts output
-        end
-      else
-        io.puts colorize(:help, 'No config directory')
-      end
+      ConfigFiles.new(io).perform_checks
     end
 
     private
-
 
     def simple_check(cmd, message, hint = nil)
       %x[#{cmd}]
