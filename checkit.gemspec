@@ -5,7 +5,7 @@ require 'checkit/version'
 
 Gem::Specification.new do |gem|
   gem.name          = 'checkit'
-  gem.version       = Checkit::VERSION
+  gem.version       = CheckIt::VERSION
   gem.authors       = ['Maximilian Schulz']
   gem.email         = ['m.schulz@kulturfluss.de']
   gem.description   = %q{A little tool to check the your ruby project dependencies}
