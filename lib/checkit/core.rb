@@ -1,7 +1,7 @@
-require 'bundler'
-require 'pp'
-
 $VERBOSE = nil
+
+require 'bundler'
+require 'ansi'
 
 module CheckIt
   class Core
@@ -22,6 +22,11 @@ module CheckIt
       'carrierwave' => ['convert']
     }
 
+    def self.run(io = STDOUT)
+      self.new(io).perform_checks
+      io.puts
+    end
+
     def initialize(io)
       self.io = io
     end
@@ -35,79 +40,56 @@ module CheckIt
     end
 
     def check_bundle
-      simple_check('bundle check', 'Bundle', %(Please run 'bundle install'))
+      print_header('Bundled rubygems')
+      simple_check('bundle check', 'Bundle', %(Run 'bundle install'))
     end
 
     def check_dependencies
+      print_header('Server dependencies')
       dependency_states.each do |name, command_states|
         io.puts " * Gem '#{name}' will need:"
         command_states.each do |cmd, state|
-          io.print "   #{cmd}: "
-          human_state(state)
-          io.puts
+          io.puts "   #{cmd}: #{human_state(state)}"
         end
       end
     end
 
     def check_config_files
-      io.puts " * Config files (just a guess)"
+      print_header('Configuration files')
       if File.directory?("config")
         Dir['config/*sample*', 'config/*example*'].each do |example_file|
           cleaned_file_name = example_file.gsub(/\.sample|\.example/, '')
           io.print "   #{cleaned_file_name}: "
-          unless File.exists?(cleaned_file_name)
-            print_color("Missing", rgb(2, 2, 2), nil)
+          output = if File.exists?(cleaned_file_name)
+            colorize(:notice, 'Ok')
+          else
+            if %w(.json .yml).include?(File.extname(cleaned_file_name))
+              colorize(:alert, 'Missing')
+            else
+              colorize(:warning, 'Probably not a config file or a duplicate')
+            end
           end
-          io.puts
+          io.puts output
         end
       else
-        print_color("No config directory", rgb(2, 2, 2), nil)
-        io.puts
+        io.puts colorize(:help, 'No config directory')
       end
     end
 
-    def self.run(io = STDOUT)
-      io.puts "Checking project dependencies:"
-      io.puts
-      app = self.new(io)
-      app.perform_checks
-      io.puts
-    end
-
     private
-
-    def set_color(fg, bg)
-      io.print "\x1b[38;5;#{fg}m" if fg
-      io.print "\x1b[48;5;#{bg}m" if bg
-    end
-
-    def reset_color
-      io.print "\x1b[0m"
-    end
-
-    def print_color(txt, fg, bg)
-      set_color(fg, bg)
-      io.print txt
-      reset_color
-    end
-
-    # Each color can have a value between 0 and 5
-    def rgb(red, green, blue)
-      16 + (red * 36) + (green * 6) + blue
-    end
 
 
     def simple_check(cmd, message, hint = nil)
       %x[#{cmd}]
       io.print " * #{message}: "
       if $?.exitstatus == 1
-        print_color('failed', rgb(5, 0, 0), nil)
+        io.print colorize(:alert, 'failed')
         if hint
-          puts
-          print_color("   Hint: #{hint}", rgb(2, 2, 2), nil)
+          io.puts
+          io.print colorize(:help, "   Hint: #{hint}")
         end
       else
-        print_color('OK', rgb(0, 5, 0), nil)
+        io.print colorize(:notice, 'OK')
       end
       io.puts
       $?.exitstatus == 0
@@ -158,13 +140,35 @@ module CheckIt
     def human_state(state)
       case state
       when :not_installed
-        print_color('not installed', rgb(5, 0, 0), nil)
-        print_color(" Hint: The command might not be in the PATH", rgb(2, 2, 2), nil)
+        colorize(:alert, 'not installed')
+        colorize(:help, " Hint: The command might not be in the PATH")
       when :not_running
-        print_color('not running', rgb(5, 0, 0), nil)
+        colorize(:alert, 'not running')
       when :ok
-        print_color('OK', rgb(0, 5, 0), nil)
+        colorize(:notice, 'OK')
       end
+    end
+
+    def colorize(type, text)
+      color = case type
+      when :alert, :error
+        :red
+      when :notice, :ok
+        :green
+      when :help, :warning
+        :yellow
+      else
+        :white
+      end
+      ANSI.color(color) { text }
+    end
+
+    def print_header(txt)
+      io.puts
+      io.puts '+' + '-' * 78 + '+'
+      io.puts '| ' + txt.ljust(76) + ' |'
+      io.puts '+' + '-' * 78 + '+'
+      io.puts
     end
 
   end
